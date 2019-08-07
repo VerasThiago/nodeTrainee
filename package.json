@@ -1,0 +1,26 @@
+{
+  "name": "nodetrainee",
+  "version": "1.0.0",
+  "description": "Node rest api ",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VerasThiago/nodeTrainee.git"
+  },
+  "keywords": [
+    "Trainee"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VerasThiago/nodeTrainee/issues"
+  },
+  "homepage": "https://github.com/VerasThiago/nodeTrainee#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "nodemon": "^1.19.1"
+  }
+}

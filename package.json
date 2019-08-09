@@ -21,6 +21,8 @@
   "homepage": "https://github.com/VerasThiago/nodeTrainee#readme",
   "dependencies": {
     "express": "^4.17.1",
-    "nodemon": "^1.19.1"
+    "nodemon": "^1.19.1",
+    "moment": "^2.24.0",
+    "body-parser": "1.19.0"
   }
 }

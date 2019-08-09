@@ -13,7 +13,7 @@ const PORT = 8080;
 const HOST = "0.0.0.0";
 // Mock DB
 var meals = {
-    "size": 2,
+    "size": 3,
     "meals": [
         {
             "id":0,
@@ -30,6 +30,15 @@ var meals = {
             "description": "Sdds Bob's Ovomaltine",
             "calories": 100,
             "date": moment("2019-08-08T11:04:00Z"),
+            "createdAt": moment(),
+            "updatedAt": moment()
+        },
+        {
+            "id":2,
+            "name": "Big Mac",
+            "description": "2 hambúrgueres, alface, queijo e o molho especial. Cebola, pickles e o pão com gergelim",
+            "calories": 1000,
+            "date": moment("2019-08-09T12:00:00.000Z"),
             "createdAt": moment(),
             "updatedAt": moment()
         }
@@ -77,19 +86,52 @@ app.route('/meals')
 app.put('/meals/:id', jsonParser, (req, res) => {
     let data = req.body;
     let id = req.params.id;
+    // ID error check
+    if(id < 0 || id > meals.size){
+        res.json({"result":"Fail", "error":"Invalid ID (" + id + ")"});
+        res.end();
+    }
+    let changedMeals = meals.meals.slice()
     // Process changes
     for(let f in data){
-        // Valid key
+        // Verifies that received object is valid
+        // That is, all keys in the object exist in meals.
         if(data.hasOwnProperty(f)){
-            if(meals.meals[id].hasOwnProperty(f)){
-                meals.meals[id][f] = data[f];
-            } else {
+            if(!changedMeals[id].hasOwnProperty(f)){
                 res.json({"result":"Fail", "error":"Meal has no property " + f});
+                res.end();
+                return;
+            } else {
+                // Change is valid
+                changedMeals[id][f] = data[f];
             }
         } 
     }
-    meals.meals[id].updatedAt = moment();
+    // Now effectively make the changes
+    changedMeals[id].updatedAt = moment();
+    meals.meals = changedMeals;
     res.json({"result":"Success", "id": id});
+    res.end();
+});
+
+// Get meals from X days ago
+app.get('/consume/:days', (req, res) => {
+    let duration = req.params.days;
+    let mealsToSend = [];
+    let now = moment();
+    // Limit is duration days before today
+    // Note that subtracts change the object, so we need to do it only once
+    // And it can't be in the 'now' object
+    let limit = new moment(now);
+    limit.subtract(duration, 'days');
+    for(let i = 0; i < meals.size; i++){
+        let meal = meals.meals[i];
+        if(meal.date.isBetween(limit, now)){
+            mealsToSend.push(meal);
+        }
+    }
+    res.json({"size" : mealsToSend.length, "meals": mealsToSend});
+    res.end();
 });
 
 app.listen(PORT, HOST, () => {console.log("Server listening in port " + PORT)});

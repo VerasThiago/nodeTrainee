@@ -2,6 +2,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const moment = require('moment');
+var log = require('loglevel');
 // App creation
 const app = express();
 // Parsers
@@ -20,7 +21,7 @@ var meals = {
             "name": "Batata Frita",
             "description": "Delicious :P",
             "calories": 100,
-            "date": moment("2015-03-25T12:00:00Z"),
+            "date": moment("2019-08-01T12:00:00Z"),
             "createdAt": moment(),
             "updatedAt": moment()
         },
@@ -52,7 +53,12 @@ app.get('/', (req, res) => {
 app.use('/time', bodyParser.text());
 app.route('/time')
     .get((req, res) => {
-    res.send(`Now is ${moment().format("dddd, MMMM Do YYYY, h:mm:ss a")}`);
+        log.trace("Trace")
+        log.debug("Debug")
+        log.info("Info")
+        log.warn("Warning")
+        log.error("Error")
+        res.send(`Now is ${moment().format("dddd, MMMM Do YYYY, h:mm:ss a")}`);
     })
     .post(bodyParser.text(), (req, res) => {
         let date = moment(String(req.body).replace(/^"(.*)"$/, '$1'));
@@ -65,7 +71,22 @@ app.route('/time')
     
 app.route('/meals')
     .get((req, res) => {
-        res.json(meals);
+
+        var html = "<html><h1>Meals List</h1>";
+        html += "<ul>"
+        for(let i = 0; i < meals.size; i++){
+            let meal = meals.meals[i];
+            html += "<li><h2>" + meal.name + "</h2></li>";
+            html += "<ul>";
+            html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
+            html += "<li><h3>Description : " + meal.description + "</h3></li>";
+            html += "<li><h3>Date : " + meal.date.format("dddd, MMMM Do YYYY, h:mm:ss a") + "</h3></li>";
+            html += "</ul>";
+        }
+        html += "</ul>"
+        html += "</html>";
+
+        res.send(html);
     })
     .post(jsonParser, (req, res) => {
         let newMeal = req.body;
@@ -125,13 +146,26 @@ app.get('/consume/:days', (req, res) => {
     // And it can't be in the 'now' object
     let limit = new moment(now);
     limit.subtract(duration, 'days');
+
+
+    var html = "<html><h1>Itens</h1>";
+    html += "<ul>"
     for(let i = 0; i < meals.size; i++){
         let meal = meals.meals[i];
         if(meal.date.isBetween(limit, now)){
+            html += "<li><h2>" + meal.name + "</h2></li>";
+            html += "<ul>";
+            html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
+            html += "</ul>";
             mealsToSend.push(meal);
             totalCalories += meal.calories;
         }
     }
+    html += "</ul>"
+    html += "<h1>Total Calories : " + totalCalories.toString(); + "</h1>";
+    html += "</html>";
+
+    res.send(html);
     res.json({"size" : mealsToSend.length, "meals": mealsToSend, "calories" : totalCalories});
     res.end();
 });

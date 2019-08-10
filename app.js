@@ -2,15 +2,39 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const moment = require('moment');
+const log = require('loglevel');
+const logFormat = require('loglevel-format');
+const HttpStatus = require('http-status-codes');
 // App creation
 const app = express();
 // Parsers
 const jsonParser = bodyParser.json();
-// BR, mano
+// Locale to Brazilian portuguese
 moment.locale('pt-BR');
 // Default port
 const PORT = 8080;
 const HOST = "0.0.0.0";
+// Log level
+const LOG_LEVEL = log.levels.INFO;
+log.setDefaultLevel(LOG_LEVEL);
+// Log format
+var defaults = {
+template: '[%l] %t: %m',
+    messageFormatter: function(data){
+        return data;  
+    },
+    timestampFormatter: function (date) {
+        return date.toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
+    },
+    levelFormatter: function (level) {
+        return level.toUpperCase();
+    },
+    nameFormatter: function (name) {
+        return name || 'root';
+    },
+    appendExtraArguments: false
+};
+logFormat.apply(log, defaults);
 // Mock DB
 var meals = {
     "size": 3,
@@ -44,19 +68,37 @@ var meals = {
         }
     ]
 }
+// Log all incoming requests for debug
+app.use( (req, res, next) => {
+    log.debug(`Received ${req.method} ${req.url}`);
+    next();
+});
 
+// ROUTE PATHS
 app.get('/', (req, res) => {
-    res.end("Server running :+1:");
+    res.end(`
+    Welcome to our simple API :D
+    Methods:
+
+    GET /time - Get current time
+    POST /time, send timestamp or time string - Get how long ago that moment was
+
+    GET /meals - Get all meals stored
+    POST /meals, send meal in json format - Add new meal.
+    PUT /meals/:id, send meal fields - Update meal
+    `);
 });
 
 app.use('/time', bodyParser.text());
 app.route('/time')
     .get((req, res) => {
-    res.send(`Now is ${moment().format("dddd, MMMM Do YYYY, h:mm:ss a")}`);
+        res.send(`Now is ${moment().format("dddd, MMMM Do YYYY, h:mm:ss a")}`);
     })
     .post(bodyParser.text(), (req, res) => {
         let date = moment(String(req.body).replace(/^"(.*)"$/, '$1'));
         if(!date.isValid()){
+            log.info(`Invalid date (${date}) received at POST /time`);
+            res.status(HttpStatus.BAD_REQUEST)
             res.end(`${req.body} is not a valid date`);
         } else {
             res.end(`Received ${date.format("dddd, MMMM Do YYYY, h:mm:ss a")} (${date.fromNow()})\nNow is ${moment().format("dddd, MMMM Do YYYY, h:mm:ss a")}`);
@@ -80,6 +122,9 @@ app.route('/meals')
         meals.meals.push(newMeal);
         meals.size = meals.meals.length;
 
+        log.info(`New meal added to mock database: ${newMeal}`);
+        log.info(`Mock Database now has ${meals.size} meals stored`);
+        res.status(HttpStatus.CREATED);
         res.json({"result":"Success", "id":newMeal.id});
     });
 
@@ -88,8 +133,11 @@ app.put('/meals/:id', jsonParser, (req, res) => {
     let id = req.params.id;
     // ID error check
     if(id < 0 || id > meals.size){
+        log.warn(`In PUT /meals/:id - Invalid ID received. (${id})`);
+        res.status(HttpStatus.BAD_REQUEST);
         res.json({"result":"Fail", "error":"Invalid ID (" + id + ")"});
         res.end();
+        return;
     }
     let changedMeals = meals.meals.slice()
     // Process changes
@@ -98,11 +146,14 @@ app.put('/meals/:id', jsonParser, (req, res) => {
         // That is, all keys in the object exist in meals.
         if(data.hasOwnProperty(f)){
             if(!changedMeals[id].hasOwnProperty(f)){
+                log.warn(`In PUT /meals/:id - Invalid property received. (${f})`);
+                res.status(HttpStatus.BAD_REQUEST);
                 res.json({"result":"Fail", "error":"Meal has no property " + f});
                 res.end();
                 return;
             } else {
                 // Change is valid
+                log.debug(`In PUT /meals/:id - Changed property ${f} from meal ${id}.\nFrom ${changedMeals[id][f]} to ${data[f]}`);
                 changedMeals[id][f] = data[f];
             }
         } 
@@ -110,6 +161,8 @@ app.put('/meals/:id', jsonParser, (req, res) => {
     // Now effectively make the changes
     changedMeals[id].updatedAt = moment();
     meals.meals = changedMeals;
+    log.info(`In PUT /meals/:id - Updated meal ${id}: ${changedMeals[id]}`);
+    res.status(HttpStatus.OK);
     res.json({"result":"Success", "id": id});
     res.end();
 });
@@ -117,6 +170,13 @@ app.put('/meals/:id', jsonParser, (req, res) => {
 // Get meals from X days ago
 app.get('/consume/:days', (req, res) => {
     let duration = req.params.days;
+    if(isNaN(duration) || duration < 0){
+        log.info(`In GET /consume/:days - Received invalid duration ${duration}`);
+        res.status(HttpStatus.BAD_REQUEST);
+        res.json({"result": "Fail", "error": "Number of days is not a valid number."});
+        res.end();
+        return;
+    }
     let mealsToSend = [];
     let now = moment();
     // Limit is duration days before today
@@ -124,15 +184,20 @@ app.get('/consume/:days', (req, res) => {
     // And it can't be in the 'now' object
     let limit = new moment(now);
     limit.subtract(duration, 'days');
+    length.debug(`In GET /consume/:days - Getting meal consmed between ${limit.format("MM Do YYYY")} and ${now.format("MM Do YYYY")}`);
+
     for(let i = 0; i < meals.size; i++){
         let meal = meals.meals[i];
         if(meal.date.isBetween(limit, now)){
             mealsToSend.push(meal);
         }
     }
+    log.debug(`${mealsToSend.length} meals sent back.`);
     res.json({"size" : mealsToSend.length, "meals": mealsToSend});
     res.end();
 });
 
-app.listen(PORT, HOST, () => {console.log("Server listening in port " + PORT)});
+app.listen(PORT, HOST, () => {
+    log.info("Server listening in port " + PORT)
+});
 

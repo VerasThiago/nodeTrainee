@@ -119,6 +119,7 @@ app.get('/consume/:days', (req, res) => {
     let duration = req.params.days;
     let mealsToSend = [];
     let now = moment();
+    let totalCalories = 0.0;
     // Limit is duration days before today
     // Note that subtracts change the object, so we need to do it only once
     // And it can't be in the 'now' object
@@ -128,9 +129,10 @@ app.get('/consume/:days', (req, res) => {
         let meal = meals.meals[i];
         if(meal.date.isBetween(limit, now)){
             mealsToSend.push(meal);
+            totalCalories += meal.calories;
         }
     }
-    res.json({"size" : mealsToSend.length, "meals": mealsToSend});
+    res.json({"size" : mealsToSend.length, "meals": mealsToSend, "calories" : totalCalories});
     res.end();
 });
 

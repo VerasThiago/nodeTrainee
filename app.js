@@ -16,6 +16,7 @@ moment.locale('pt-BR');
 // Default port
 const PORT = 8080;
 const HOST = "0.0.0.0";
+const MONGO = process.env.CONN;
 // Log level
 const LOG_LEVEL = log.levels.INFO;
 log.setDefaultLevel(LOG_LEVEL);
@@ -40,7 +41,7 @@ template: '[%l] %t: %m',
 // Apply format to logs
 logFormat.apply(log, defaults);
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/nodeTreinee', {useNewUrlParser: true});
+mongoose.connect('mongodb://' + MONGO + ':27017/nodeTreinee', {useNewUrlParser: true});
 // Log all incoming requests for debug
 app.use( (req, res, next) => {
     log.debug(`Received ${req.method} ${req.url}`);

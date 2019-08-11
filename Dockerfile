@@ -1,5 +1,6 @@
 FROM node:10
 
+ENV CONN mongo
 WORKDIR /usr/src/app
 
 COPY package*.json ./

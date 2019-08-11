@@ -5,11 +5,13 @@ const moment = require('moment');
 const log = require('loglevel');
 const logFormat = require('loglevel-format');
 const HttpStatus = require('http-status-codes');
+const mongoose = require('mongoose');
+const Meal = require('./models');
 // App creation
 const app = express();
 // Parsers
 const jsonParser = bodyParser.json();
-// Locale to Brazilian portuguese
+// Locale to Brazilian portuguese (for datetime objects)
 moment.locale('pt-BR');
 // Default port
 const PORT = 8080;
@@ -17,7 +19,8 @@ const HOST = "0.0.0.0";
 // Log level
 const LOG_LEVEL = log.levels.INFO;
 log.setDefaultLevel(LOG_LEVEL);
-// Log format
+// Log format.
+// Message example: [INFO] 15:08:26: Server listening in port 8080
 var defaults = {
 template: '[%l] %t: %m',
     messageFormatter: function(data){
@@ -34,40 +37,10 @@ template: '[%l] %t: %m',
     },
     appendExtraArguments: false
 };
+// Apply format to logs
 logFormat.apply(log, defaults);
-// Mock DB
-var meals = {
-    "size": 3,
-    "meals": [
-        {
-            "id":0,
-            "name": "Batata Frita",
-            "description": "Delicious :P",
-            "calories": 100,
-            "date": moment("2015-03-25T12:00:00Z"),
-            "createdAt": moment(),
-            "updatedAt": moment()
-        },
-        {
-            "id":1,
-            "name": "Milk Shake",
-            "description": "Sdds Bob's Ovomaltine",
-            "calories": 100,
-            "date": moment("2019-08-08T11:04:00Z"),
-            "createdAt": moment(),
-            "updatedAt": moment()
-        },
-        {
-            "id":2,
-            "name": "Big Mac",
-            "description": "2 hambúrgueres, alface, queijo e o molho especial. Cebola, pickles e o pão com gergelim",
-            "calories": 1000,
-            "date": moment("2019-08-09T12:00:00.000Z"),
-            "createdAt": moment(),
-            "updatedAt": moment()
-        }
-    ]
-}
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/nodeTreinee', {useNewUrlParser: true});
 // Log all incoming requests for debug
 app.use( (req, res, next) => {
     log.debug(`Received ${req.method} ${req.url}`);
@@ -107,7 +80,18 @@ app.route('/time')
     
 app.route('/meals')
     .get((req, res) => {
-        res.json(meals);
+        let allMeals = Meal.find({}).select("-__v");
+
+        allMeals.exec((err, meals) => {
+            if(err){
+                log.error("In GET /meals - " + err.mesage);
+                res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+                res.json({"result": "Fail", "error": "Could not load meals."});
+                res.end();
+            } else {
+                res.json({"size": meals.length, "meals": meals});
+            }
+        });
     })
     .post(jsonParser, (req, res) => {
         let newMeal = req.body;
@@ -117,54 +101,61 @@ app.route('/meals')
         newMeal.date = moment(newMeal.date);
         newMeal.createdAt = moment();
         newMeal.updatedAt = moment();
-        // Add index
-        newMeal.id = meals.size
-        meals.meals.push(newMeal);
-        meals.size = meals.meals.length;
-
-        log.info(`New meal added to mock database: ${newMeal}`);
-        log.info(`Mock Database now has ${meals.size} meals stored`);
-        res.status(HttpStatus.CREATED);
-        res.json({"result":"Success", "id":newMeal.id});
+        // Add newMeal to database
+        Meal(newMeal).save( (err, data) =>{
+            if(err){
+                log.error("In POST /meals - " + err.message);
+                res.json({"result": "Fail", "error": err.message});
+            } else {
+                log.info(`New meal added to database: ${newMeal}`);
+                res.status(HttpStatus.CREATED);
+                res.json({"result":"Success", "id":data._id});
+            }
+        });
     });
 
 app.put('/meals/:id', jsonParser, (req, res) => {
-    let data = req.body;
+    var data = req.body;
     let id = req.params.id;
-    // ID error check
-    if(id < 0 || id > meals.size){
-        log.warn(`In PUT /meals/:id - Invalid ID received. (${id})`);
-        res.status(HttpStatus.BAD_REQUEST);
-        res.json({"result":"Fail", "error":"Invalid ID (" + id + ")"});
-        res.end();
-        return;
-    }
-    let changedMeals = meals.meals.slice()
-    // Process changes
-    for(let f in data){
-        // Verifies that received object is valid
-        // That is, all keys in the object exist in meals.
-        if(data.hasOwnProperty(f)){
-            if(!changedMeals[id].hasOwnProperty(f)){
-                log.warn(`In PUT /meals/:id - Invalid property received. (${f})`);
-                res.status(HttpStatus.BAD_REQUEST);
-                res.json({"result":"Fail", "error":"Meal has no property " + f});
+    
+    Meal.findById(id, (err, meal) => {
+        if(err){
+            log.error("In PUT /meals/:id - " + err.message);
+            res.json({"result": "Fail", "error": err.message});
+            res.end();
+            return;
+        }
+
+        for(let f in data){
+            // Verifies that received object is valid
+            // That is, all keys in the object exist in meals.
+            if(data.hasOwnProperty(f)){
+                if(!meal[f]){
+                    log.warn(`In PUT /meals/:id - Invalid property received. (${f})`);
+                    res.status(HttpStatus.BAD_REQUEST);
+                    res.json({"result":"Fail", "error":"Meal has no property " + f});
+                    res.end();
+                    return;
+                } else {
+                    // Change is valid
+                    meal[f] = data[f];
+                }
+            } 
+        }
+        meal.updatedAt = moment();
+        meal.save( (err) => {
+            if(err){
+                log.error("In PUT /meals/:id - " + err.message);
+                res.json({"result": "Fail", "error": err.message});
                 res.end();
                 return;
             } else {
-                // Change is valid
-                log.debug(`In PUT /meals/:id - Changed property ${f} from meal ${id}.\nFrom ${changedMeals[id][f]} to ${data[f]}`);
-                changedMeals[id][f] = data[f];
+                log.debug(`In PUT /meals/:id - Changed meal successfully.`);
+                res.json({"result":"Success"});
+                res.end();
             }
-        } 
-    }
-    // Now effectively make the changes
-    changedMeals[id].updatedAt = moment();
-    meals.meals = changedMeals;
-    log.info(`In PUT /meals/:id - Updated meal ${id}: ${changedMeals[id]}`);
-    res.status(HttpStatus.OK);
-    res.json({"result":"Success", "id": id});
-    res.end();
+        });
+    });
 });
 
 // Get meals from X days ago

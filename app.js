@@ -16,9 +16,9 @@ moment.locale('pt-BR');
 // Default port
 const PORT = 8080;
 const HOST = "0.0.0.0";
-const MONGO = process.env.CONN;
+const MONGO = "localhost";
 // Log level
-const LOG_LEVEL = log.levels.INFO;
+const LOG_LEVEL = log.levels.DEBUG;
 log.setDefaultLevel(LOG_LEVEL);
 // Log format.
 // Message example: [INFO] 15:08:26: Server listening in port 8080
@@ -90,7 +90,22 @@ app.route('/meals')
                 res.json({"result": "Fail", "error": "Could not load meals."});
                 res.end();
             } else {
-                res.json({"size": meals.length, "meals": meals});
+                var aux = meals.slice();
+                
+                var html = "<html><h1>Meals List</h1>";
+                html += "<ul>"
+                for(let i = 0; i < aux.length; i++){
+                    let meal = aux[i];
+                    html += "<li><h2>" + meal.name + "</h2></li>";
+                    html += "<ul>";
+                    html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
+                    html += "<li><h3>Description : " + meal.description + "</h3></li>";
+                    html += "<li><h3>Date : " + meal.date + "</h3></li>";
+                    html += "</ul>";
+                }
+                html += "</ul>"
+                html += "</html>";
+                res.send(html);
             }
         });
     })
@@ -177,22 +192,41 @@ app.get('/consume/:days', (req, res) => {
     // And it can't be in the 'now' object
     let limit = new moment(now);
     limit.subtract(duration, 'days');
-    length.debug(`In GET /consume/:days - Getting meal consmed between ${limit.format("MM Do YYYY")} and ${now.format("MM Do YYYY")}`);
+    log.debug(`In GET /consume/:days - Getting meal consmed between ${limit.format("MM Do YYYY")} and ${now.format("MM Do YYYY")}`);
 
-    for(let i = 0; i < meals.size; i++){
-        let meal = meals.meals[i];
-        if(meal.date.isBetween(limit, now)){
-            html += "<li><h2>" + meal.name + "</h2></li>";
-            html += "<ul>";
-            html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
-            html += "</ul>";
-            mealsToSend.push(meal);
-            totalCalories += meal.calories;
+    let allMeals = Meal.find({ 
+        date : {$gte : limit.format()}  
+    }).select("-__v");
+
+    allMeals.exec((err, aux) => {
+        if(err){
+            log.error("In GET /meals - " + err.mesage);
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+            res.json({"result": "Fail", "error": "Could not load meals."});
+            res.end();
         }
-    }
-    log.debug(`${mealsToSend.length} meals sent back.`);
-    res.json({"size" : mealsToSend.length, "meals": mealsToSend});
-    res.end();
+        else{
+            var html = "<html><h1>Meals List</h1>";
+            html += "<ul>";
+            let meals = aux.slice();
+            for(let i = 0; i < meals.length; i++){
+                let meal = meals[i];
+                var current = moment(meal.date);
+                html += "<li><h2>" + meal.name + "</h2></li>";
+                html += "<ul>";
+                html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
+                html += "<li><h3>Date : " + current.format() + "</h3></li>";
+                html += "</ul>";
+                mealsToSend.push(meal);
+                totalCalories += meal.calories;
+            }
+            html += "</ul>";
+            html += "<h1>Total Calories : " + totalCalories.toString() + " </h1>";
+            html += "</html>";
+    
+            res.send(html);
+        }
+    });
 });
 
 app.listen(PORT, HOST, () => {

@@ -16,7 +16,7 @@ moment.locale('pt-BR');
 // Default port
 const PORT = 8080;
 const HOST = "0.0.0.0";
-const MONGO = "localhost";
+const MONGO = process.env.CONN;
 // Log level
 const LOG_LEVEL = log.levels.DEBUG;
 log.setDefaultLevel(LOG_LEVEL);

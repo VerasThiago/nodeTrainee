@@ -1,6 +1,6 @@
 FROM node:10
 
-ENV CONN mongo
+ENV CONN "172.21.55.122"
 WORKDIR /usr/src/app
 
 COPY package*.json ./

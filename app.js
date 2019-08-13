@@ -17,6 +17,7 @@ moment.locale('pt-BR');
 const PORT = 8080;
 const HOST = "0.0.0.0";
 const MONGO = process.env.CONN;
+//const MONGO = "localhost";
 // Log level
 const LOG_LEVEL = log.levels.DEBUG;
 log.setDefaultLevel(LOG_LEVEL);
@@ -54,12 +55,16 @@ app.get('/', (req, res) => {
     Welcome to our simple API :D
     Methods:
 
-    GET /time - Get current time
-    POST /time, send timestamp or time string - Get how long ago that moment was
+    GET /time - Get current time.
+    POST /time, send timestamp or time string - Get how long ago that moment was.
 
-    GET /meals - Get all meals stored
+    GET /meals - Get all meals stored.
     POST /meals, send meal in json format - Add new meal.
-    PUT /meals/:id, send meal fields - Update meal
+    PUT /meals/:id, send meal fields - Update meal.
+    DELETE /meals/:id - Delete meal.
+
+    Created by : Thiago Veras & Giovanni Guidini
+
     `);
 });
 
@@ -98,6 +103,7 @@ app.route('/meals')
                     let meal = aux[i];
                     html += "<li><h2>" + meal.name + "</h2></li>";
                     html += "<ul>";
+                    html += "<li><h3>ID : " + meal.id + "</h3></li>";
                     html += "<li><h3>Calories : " + meal.calories.toString() + "</h3></li>";
                     html += "<li><h3>Description : " + meal.description + "</h3></li>";
                     html += "<li><h3>Date : " + meal.date + "</h3></li>";
@@ -167,10 +173,30 @@ app.put('/meals/:id', jsonParser, (req, res) => {
                 return;
             } else {
                 log.debug(`In PUT /meals/:id - Changed meal successfully.`);
+                res.status(200);
                 res.json({"result":"Success"});
                 res.end();
             }
         });
+    });
+});
+
+app.delete('/meals/:id', jsonParser, (req, res) => {
+    let id = req.params.id;
+    let currentMeal = Meal.deleteOne({ 
+        _id : id
+    });
+    currentMeal.exec((err, aux) =>{
+        if(err){
+            log.error("In Delete /meals - " + err.mesage);
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+            res.json({"result": "Fail", "error": "Could not delete meal."});
+            res.end();
+        } else{
+            log.info(`New meal deleted to database: ${id}`);
+            res.status(200);
+            res.json({"result":"Success", "id": id});
+        }
     });
 });
 

@@ -24,7 +24,7 @@
 
 ```ibmcloud cr login```
 
-- Push docker image to ibmcloud namspece
+- Push docker image to ibmcloud namespace
 
 ```docker push us.icr.io/verasthiago/node-web-app:latest```
 

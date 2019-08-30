@@ -8,7 +8,7 @@
 
 - Config kubernetes cluster 
 
-```ibmcloud ks cluster-config --cluster node-web-app```
+```ibmcloud ks cluster-config --cluster blkj3qmd0obcoo8tmggg```
 
 - Config environment variables (just copy and paste the output from the last step)
 
